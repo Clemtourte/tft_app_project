@@ -6,6 +6,9 @@ load_dotenv()
 
 API_KEY = os.getenv('API_KEY')
 
+username = 'Tourtipouss'
+tag = '9861'
+
 TRAIT_MAPPING = {
     'ElTigre': 'The Champ',
     'GemForce': 'Crystal Gambit',
@@ -56,8 +59,6 @@ def get_puuid(username, tag, API_KEY):
         print(f"API error: {e}")
         print(f"Status Code: {response.status_code if 'response' in locals() else 'N/A'}")
         return None
-username = 'Tourtipouss'
-tag = '9861'
 
 puuid = get_puuid(username, tag, API_KEY)
 
@@ -74,7 +75,7 @@ def get_matchid(puuid,start,count,API_key):
         print(f"Status Code: {response.status_code if 'response' in locals() else 'N/A'}")
         return None
 
-match_ids = get_matchid(puuid,0, 50, API_KEY)
+match_ids = get_matchid(puuid,0, 20, API_KEY)
 
 def get_match_info(match_ids, API_KEY):
     matchinfo_url = 'https://europe.api.riotgames.com/tft/match/v1/matches'
@@ -108,41 +109,70 @@ def get_champion_cost():
 
 CHAMPION_COSTS = get_champion_cost()
 
-def get_character_info(match_data, match_indices=None):
+def calculate_board_value(units):
+    return sum(CHAMPION_COSTS.get(unit['character_id'].split('_')[1], 0) for unit in units)
+
+def format_unit_info(unit):
+    clean_name = unit['character_id'].split('_')[1]
+    clean_items = [item.split('_')[2] for item in unit['itemNames']]
+    mapped_items = [ITEM_MAPPING.get(item, item) for item in clean_items]
+    items_str = f" ({', '.join(mapped_items)})" if mapped_items else " (no items)"
+    return f'{clean_name}{items_str}'
+
+def format_traits_info(traits):
+    active_traits = []
+    for trait in traits:
+        if trait['tier_current'] > 0:
+            clean_trait = trait['name'].split('_')[1]
+            mapped_trait = TRAIT_MAPPING.get(clean_trait, clean_trait)
+            num_units = trait['num_units']
+            active_traits.append(f'{num_units} {mapped_trait}')
+    return active_traits
+
+def format_participant_info(participant):
+    placement = participant['placement']
+    riot_id_game_name = participant['riotIdGameName']
+    total_damage = participant['total_damage_to_players']
+    board_value = calculate_board_value(participant['units'])
+    
+    participant_text = f'{placement}_{riot_id_game_name} ({total_damage} damage to players):\n'
+    participant_text += f'Characters (Total board value: {board_value}):\n'
+    
+    for unit in participant['units']:
+        participant_text += format_unit_info(unit) + '\n'
+    
+    participant_text += '\nTraits:\n'
+    
+    active_traits = format_traits_info(participant['traits'])
+    for trait in active_traits:
+        participant_text += trait + '\n'
+    
+    return participant_text
+
+def display_single_match(match_info, match_number):
+    game_type = match_info['info']['tft_game_type']
+    mapped_game_type = GAMETYPE_MAPPING.get(game_type, game_type)
+    
+    print(f"=== MATCH {match_number} {mapped_game_type} ===")
+    
+    sorted_participants = sorted(match_info['info']['participants'], key=lambda p: p['placement'])
+    
+    for participant in sorted_participants:
+        participant_info = format_participant_info(participant)
+        print(participant_info)
+    
+    print("\n" + "="*50 + "\n")
+
+def display_matches(match_data, match_indices=None):
     if match_indices is None:
         match_indices = range(len(match_data))
     
     for match_index in match_indices:
-        game_type = match_data[match_index]['info']['tft_game_type']
-        mapped_game_type = GAMETYPE_MAPPING.get(game_type,game_type)
-        print(f"=== MATCH {match_index+1} {mapped_game_type} ===")
-        sorted_participants = sorted(match_data[match_index]['info']['participants'], key=lambda p: p['placement'])
-        for participant in sorted_participants:
-            total_board_value = sum(CHAMPION_COSTS.get(unit['character_id'].split('_')[1], 0) for unit in participant['units'])
-            placement = participant['placement']
-            riot_id_game_name = participant['riotIdGameName']
-            total_damage_to_players = participant['total_damage_to_players']
-            print(f'{placement}_{riot_id_game_name} ({total_damage_to_players} damage to players):\nCharacters (Total board value: {total_board_value}):')
-            for unit in participant['units']:
-                clean_name = unit['character_id'].split('_')[1]
-                clean_items = [item.split('_')[2] for item in unit['itemNames']]
-                mapped_items = [ITEM_MAPPING.get(item, item) for item in clean_items]
-                items_str = f" ({', '.join(mapped_items)})" if mapped_items else " (no items)"
-                print(f'{clean_name}{items_str}')
-            print()
-            print('Traits:')
-            for trait in participant['traits']:
-                clean_trait = trait['name'].split('_')[1]
-                mapped_trait = TRAIT_MAPPING.get(clean_trait, clean_trait)
-                num_units = trait['num_units']
-                if trait['tier_current'] > 0 :
-                        print(f'{num_units} {mapped_trait}')
-            print()
-        print("\n" + "="*50 + "\n")
+        display_single_match(match_data[match_index], match_index + 1)
 
-get_character_info(match_data)
+display_matches(match_data)
 
-def get_user_stats(match_data, puuid):
+def extract_user_matches(match_data, puuid):
     user_matches = []
     for match in match_data:
         for participant in match['info']['participants']:
@@ -151,25 +181,32 @@ def get_user_stats(match_data, puuid):
                 participant_with_game_type['game_type'] = match['info']['tft_game_type']
                 user_matches.append(participant_with_game_type)
                 break
-    if user_matches:
-        username = user_matches[0]['riotIdGameName']
-        placements = [match['placement'] for match in user_matches]
-        avg_placement = sum(placements)/len(placements)
-        print(f'{username} average placement: {round(avg_placement,2)} (Number of matches : {len(user_matches)})')
-        print(f'Placements: {placements}')
-        ranked_matches = [m for m in user_matches if m['game_type'] == 'standard']
-        if ranked_matches:
-            ranked_placements = [m['placement'] for m in ranked_matches]
-            print(f'Ranked average: {round(sum(ranked_placements)/len(ranked_placements), 2)} ({len(ranked_matches)} matches)')
-          
-        doubleup_matches = [m for m in user_matches if m['game_type'] == 'pairs']
-        if doubleup_matches:
-            doubleup_placements = [m['placement'] for m in doubleup_matches]
-            print(f'DoubleUp average: {round(sum(doubleup_placements)/len(doubleup_placements), 2)} ({len(doubleup_matches)} matches)')
-        else:
-            None
-            
-    else:
-        print('No matches found for this player')
+    return user_matches
 
-get_user_stats(match_data,puuid)
+def display_game_type_stats(filtered_matches, display_name):
+    if filtered_matches:
+        placements = [match['placement'] for match in filtered_matches]
+        avg_placement = sum(placements) / len(placements)
+        print(f'{display_name} average: {round(avg_placement, 2)} ({len(filtered_matches)} matches)')
+        print(f'{display_name} placements: {placements}')
+
+def display_user_stats(match_data, puuid):
+    user_matches = extract_user_matches(match_data, puuid)
+    if not user_matches:
+        print('No matches found for this player')
+        return
+    
+    username = user_matches[0]['riotIdGameName']
+    placements = [match['placement'] for match in user_matches]
+    avg_placement = sum(placements)/len(placements)
+
+    print(f'{username} average placement: {round(avg_placement, 2)} (Number of matches: {len(user_matches)})')
+    print(f'Placements: {placements}')
+
+    ranked_matches = [m for m in user_matches if m['game_type'] == 'standard']
+    display_game_type_stats(ranked_matches, 'Ranked')
+
+    doubleup_matches = [m for m in user_matches if m['game_type'] == 'pairs']
+    display_game_type_stats(doubleup_matches, 'DoubleUp')    
+
+display_user_stats(match_data, puuid)
