@@ -75,7 +75,7 @@ def get_matchid(puuid,start,count,API_key):
         print(f"Status Code: {response.status_code if 'response' in locals() else 'N/A'}")
         return None
 
-match_ids = get_matchid(puuid,0, 50, API_KEY)
+match_ids = get_matchid(puuid,0, 20, API_KEY)
 
 def get_match_info(match_ids, API_KEY):
     matchinfo_url = 'https://europe.api.riotgames.com/tft/match/v1/matches'
@@ -230,4 +230,58 @@ def display_user_champion_games(match_data, puuid, top_champions):
 
 display_user_champion_games(match_data, puuid, 10)
 
+def analyze_champion_perfs(user_matches):
+    champion_stats = {}
+
+    for match in user_matches:
+        placement = match['placement']
+        for unit in match['units']:
+            champion_name = get_champion_name(unit)
+            if champion_name not in champion_stats:
+                champion_stats[champion_name] = {'placements': []}
+            
+            champion_stats[champion_name]['placements'].append(placement)
     
+    for champion, data in champion_stats.items():
+        placements = data['placements']
+        data['games'] = len(placements)
+        data['avg_placement'] = sum(placements)/len(placements)
+
+        data['top4_count'] = sum(1 for p in placements if p <=4)
+        data['top4_rate'] = (data['top4_count']/data['games'])*100
+
+        data['win_count'] = sum(1 for p in placements if p ==1)
+        data['win_rate'] = (data['win_count']/data['games'])*100
+    
+    return champion_stats
+
+
+def display_champion_performance(match_data,puuid):
+    user_matches = extract_user_matches(match_data,puuid)
+    
+    if not user_matches:
+        print('No matches found for this player')
+        return
+    
+    champion_stats = analyze_champion_perfs(user_matches)
+
+    if not champion_stats:
+        print('No champion stats for this player')
+        return
+    
+    sorted_champions = sorted(champion_stats.items(),
+                              key = lambda x: x[1]['games'],
+                              reverse= True)
+    sorted_champions = [(champ, stats) for champ, stats in sorted_champions 
+                   if stats['games'] >= 3]
+    print(f'{'Champion':<15} {'Games':<6} {'Avg Place':<10} {'Top 4%':<8} {'Win %':<8}')
+    print('-'*55)
+
+    for champion,stats in sorted_champions:
+        print(f'{champion:<15} {stats['games']:<6} '
+              f'{stats['avg_placement']:<10.2f} '
+              f'{stats['top4_rate']:<8.1f}% '
+              f'{stats['win_rate']:<8.1f}%')
+
+
+display_champion_performance(match_data,puuid)
