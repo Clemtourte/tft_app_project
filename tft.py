@@ -75,7 +75,7 @@ def get_matchid(puuid,start,count,API_key):
         print(f"Status Code: {response.status_code if 'response' in locals() else 'N/A'}")
         return None
 
-match_ids = get_matchid(puuid,0, 20, API_KEY)
+match_ids = get_matchid(puuid,0, 50, API_KEY)
 
 def get_match_info(match_ids, API_KEY):
     matchinfo_url = 'https://europe.api.riotgames.com/tft/match/v1/matches'
@@ -112,8 +112,11 @@ CHAMPION_COSTS = get_champion_cost()
 def calculate_board_value(units):
     return sum(CHAMPION_COSTS.get(unit['character_id'].split('_')[1], 0) for unit in units)
 
+def get_champion_name(unit):
+    return unit['character_id'].split('_')[1]
+
 def format_unit_info(unit):
-    clean_name = unit['character_id'].split('_')[1]
+    clean_name = get_champion_name(unit)
     clean_items = [item.split('_')[2] for item in unit['itemNames']]
     mapped_items = [ITEM_MAPPING.get(item, item) for item in clean_items]
     items_str = f" ({', '.join(mapped_items)})" if mapped_items else " (no items)"
@@ -210,3 +213,21 @@ def display_user_stats(match_data, puuid):
     display_game_type_stats(doubleup_matches, 'DoubleUp')    
 
 display_user_stats(match_data, puuid)
+
+def display_user_champion_games(match_data, puuid, top_champions):
+    champion_count = {}
+    user_matches = extract_user_matches(match_data, puuid)
+
+    for match in user_matches:
+        for unit in match['units']:
+            champion_name = get_champion_name(unit)
+            champion_count[champion_name] = champion_count.get(champion_name,0) + 1
+    
+    sorted_champions = sorted(champion_count.items(),key=lambda x:x[1], reverse=True)
+    print(f'Most played champions :')
+    for champion, count in sorted_champions[:top_champions]:
+        print(f'{champion}: {count} times')
+
+display_user_champion_games(match_data, puuid, 10)
+
+    
