@@ -1,10 +1,13 @@
 import requests
 import os
 from dotenv import load_dotenv
+from db import get_supabase_client
 
 load_dotenv()
 
 API_KEY = os.getenv('API_KEY')
+
+supabase = get_supabase_client()
 
 username = 'Tourtipouss'
 tag = '9861'
@@ -46,6 +49,8 @@ GAMETYPE_MAPPING = {
     'standard' : 'Ranked',
     'pairs' : 'Double Up'
 }
+
+
 
 def get_puuid(username, tag, API_KEY):
     account_url = 'https://europe.api.riotgames.com/riot/account/v1/accounts/by-riot-id'
@@ -92,6 +97,16 @@ def get_match_info(match_ids, API_KEY):
             print(f"Status Code: {response.status_code if 'response' in locals() else 'N/A'}")
             return None
     return match_info
+
+def store_match(match_data):
+    try:
+        supabase.table('matches').upsert({
+            'match_id': match_data['metadata']['match_id'],
+            'raw_data': match_data
+        }).execute()
+        print(f'Match {match_data['metadata']['match_id']} stored')
+    except Exception as e:
+        print('DB Error: {e}')
 
 match_data = get_match_info(match_ids,API_KEY)
 
@@ -285,3 +300,9 @@ def display_champion_performance(match_data,puuid):
 
 
 display_champion_performance(match_data,puuid)
+
+try:
+    result = supabase.table('matches').select('*').limit(1).execute()
+    print("Connexion ok")
+except Exception as e:
+    print("Erreur")
