@@ -120,7 +120,7 @@ def display_game_type_stats(filtered_matches, display_name):
         print(f'{display_name} average: {round(avg_placement, 2)} ({len(filtered_matches)} matches)')
         print(f'{display_name} placements: {placements}')
 
-def display_user_stats(match_data, puuid):
+def display_user_stats(puuid):
     user_matches = get_player_matches(puuid)
     if not user_matches:
         print('No matches found for this player')
@@ -140,7 +140,7 @@ def display_user_stats(match_data, puuid):
     display_game_type_stats(doubleup_matches, 'DoubleUp')    
 
 
-def display_user_champion_games(match_data, puuid, top_champions):
+def display_user_champion_games(puuid, top_champions):
     champion_count = {}
     user_matches = get_player_matches(puuid)
 
@@ -181,7 +181,7 @@ def analyze_champion_perfs(user_matches):
     return champion_stats
 
 
-def display_champion_performance(match_data,puuid):
+def display_champion_performance(puuid):
     user_matches = get_player_matches(puuid)
     
     if not user_matches:
@@ -240,7 +240,6 @@ def update_player_data(username, tag, max_matches = 20):
 
 if __name__ == '__main__':
     puuid = update_player_data('Tourtipouss','9861',max_matches = 20)
-    user_matches = get_player_matches('')
-
     if puuid:
-        print(f'PUUID: {puuid}')
+        display_user_stats(puuid)
+        display_champion_performance(puuid)
