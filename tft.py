@@ -1,5 +1,5 @@
 from riot_api import get_puuid, get_matchid, get_match_info, get_champion_cost
-from models import add_player, get_existing_match_ids, store_match, store_participant_relations
+from models import add_player, get_existing_match_ids, store_match, store_participant_relations, get_player_matches
 from db import get_supabase_client
 import os
 from dotenv import load_dotenv
@@ -113,18 +113,6 @@ def display_matches(match_data, match_indices=None):
     for match_index in match_indices:
         display_single_match(match_data[match_index], match_index + 1)
 
-
-def extract_user_matches(match_data, puuid):
-    user_matches = []
-    for match in match_data:
-        for participant in match['info']['participants']:
-            if participant['puuid'] == puuid:
-                participant_with_game_type = participant.copy()
-                participant_with_game_type['game_type'] = match['info']['tft_game_type']
-                user_matches.append(participant_with_game_type)
-                break
-    return user_matches
-
 def display_game_type_stats(filtered_matches, display_name):
     if filtered_matches:
         placements = [match['placement'] for match in filtered_matches]
@@ -133,7 +121,7 @@ def display_game_type_stats(filtered_matches, display_name):
         print(f'{display_name} placements: {placements}')
 
 def display_user_stats(match_data, puuid):
-    user_matches = extract_user_matches(match_data, puuid)
+    user_matches = get_player_matches(puuid)
     if not user_matches:
         print('No matches found for this player')
         return
@@ -154,7 +142,7 @@ def display_user_stats(match_data, puuid):
 
 def display_user_champion_games(match_data, puuid, top_champions):
     champion_count = {}
-    user_matches = extract_user_matches(match_data, puuid)
+    user_matches = get_player_matches(puuid)
 
     for match in user_matches:
         for unit in match['units']:
@@ -194,7 +182,7 @@ def analyze_champion_perfs(user_matches):
 
 
 def display_champion_performance(match_data,puuid):
-    user_matches = extract_user_matches(match_data,puuid)
+    user_matches = get_player_matches(puuid)
     
     if not user_matches:
         print('No matches found for this player')
@@ -252,6 +240,7 @@ def update_player_data(username, tag, max_matches = 20):
 
 if __name__ == '__main__':
     puuid = update_player_data('Tourtipouss','9861',max_matches = 20)
-    
+    user_matches = get_player_matches('')
+
     if puuid:
         print(f'PUUID: {puuid}')
