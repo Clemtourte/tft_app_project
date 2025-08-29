@@ -1,16 +1,13 @@
-import requests
+from riot_api import get_puuid, get_matchid, get_match_info, get_champion_cost
+from models import add_player, get_existing_match_ids, store_match
+from db import get_supabase_client
 import os
 from dotenv import load_dotenv
-from db import get_supabase_client
 
 load_dotenv()
-
 API_KEY = os.getenv('API_KEY')
 
 supabase = get_supabase_client()
-
-username = 'Tourtipouss'
-tag = '9861'
 
 TRAIT_MAPPING = {
     'ElTigre': 'The Champ',
@@ -49,68 +46,6 @@ GAMETYPE_MAPPING = {
     'standard' : 'Ranked',
     'pairs' : 'Double Up'
 }
-
-
-
-def get_puuid(username, tag, API_KEY):
-    account_url = 'https://europe.api.riotgames.com/riot/account/v1/accounts/by-riot-id'
-    url = f"{account_url}/{username}/{tag}?api_key={API_KEY}"
-    try:
-        response = requests.get(url)
-        response.raise_for_status()
-        data = response.json()
-        return data['puuid']
-    except requests.RequestException as e:
-        print(f"API error: {e}")
-        print(f"Status Code: {response.status_code if 'response' in locals() else 'N/A'}")
-        return None
-
-puuid = get_puuid(username, tag, API_KEY)
-
-def get_matchid(puuid,start,count,API_key):
-    matchid_url = 'https://europe.api.riotgames.com/tft/match/v1/matches/by-puuid'
-    url = f"{matchid_url}/{puuid}/ids?start={start}&count={count}&api_key={API_KEY}"
-    try:
-        response = requests.get(url)
-        response.raise_for_status()
-        data = response.json()
-        return data
-    except requests.RequestException as e:
-        print(f"API error: {e}")
-        print(f"Status Code: {response.status_code if 'response' in locals() else 'N/A'}")
-        return None
-
-match_ids = get_matchid(puuid,0, 20, API_KEY)
-
-def get_match_info(match_ids, API_KEY):
-    matchinfo_url = 'https://europe.api.riotgames.com/tft/match/v1/matches'
-    match_info = []
-    for match_id in match_ids:
-        url = f"{matchinfo_url}/{match_id}?api_key={API_KEY}"
-        try:             
-            response = requests.get(url)
-            response.raise_for_status()
-            data = response.json()
-            match_info.append(data)
-        except requests.RequestException as e:
-            print(f"API error: {e}")
-            print(f"Status Code: {response.status_code if 'response' in locals() else 'N/A'}")
-            return None
-    return match_info
-
-match_data = get_match_info(match_ids,API_KEY)
-
-def get_champion_cost():
-    response = requests.get('https://ddragon.leagueoflegends.com/cdn/15.17.1/data/en_US/tft-champion.json')
-    ddragon = response.json()
-
-    champions_cost = {}
-    for champion_id, champion_data in ddragon['data'].items():
-        if 'TFT15_' in champion_id:
-            clean_name = champion_id.split('_')[1]
-            cost =  champion_data['tier']
-            champions_cost[clean_name] = cost
-    return champions_cost
 
 CHAMPION_COSTS = get_champion_cost()
 
@@ -178,7 +113,6 @@ def display_matches(match_data, match_indices=None):
     for match_index in match_indices:
         display_single_match(match_data[match_index], match_index + 1)
 
-display_matches(match_data)
 
 def extract_user_matches(match_data, puuid):
     user_matches = []
@@ -217,7 +151,6 @@ def display_user_stats(match_data, puuid):
     doubleup_matches = [m for m in user_matches if m['game_type'] == 'pairs']
     display_game_type_stats(doubleup_matches, 'DoubleUp')    
 
-display_user_stats(match_data, puuid)
 
 def display_user_champion_games(match_data, puuid, top_champions):
     champion_count = {}
@@ -233,7 +166,6 @@ def display_user_champion_games(match_data, puuid, top_champions):
     for champion, count in sorted_champions[:top_champions]:
         print(f'{champion}: {count} times')
 
-display_user_champion_games(match_data, puuid, 10)
 
 def analyze_champion_perfs(user_matches):
     champion_stats = {}
@@ -289,10 +221,36 @@ def display_champion_performance(match_data,puuid):
               f'{stats['win_rate']:<8.1f}%')
 
 
-display_champion_performance(match_data,puuid)
+def update_player_data(username, tag, max_matches = 20):
 
-try:
-    result = supabase.table('matches').select('*').limit(1).execute()
-    print("Connexion ok")
-except Exception as e:
-    print("Erreur")
+    puuid = get_puuid(username, tag, API_KEY)
+    if not puuid:
+        print(f'Could not get PUUID')
+        return None
+    
+    add_player(username, tag, puuid)
+
+    match_ids = get_matchid(puuid, 0, max_matches,API_KEY)
+    if not match_ids:
+        print(f'Could not get match IDs')
+        return None
+    
+    existing_ids = get_existing_match_ids()
+    new_match_ids = [mid for mid in match_ids if mid not in existing_ids]
+
+    print(f'Found {len(new_match_ids)} new matches ou of {len(match_ids)} total')
+
+    if new_match_ids:
+        match_data = get_match_info(new_match_ids, API_KEY)
+        if match_data:
+            for match in match_data:
+                store_match(match)
+
+    print('Update complete')
+    return puuid
+
+if __name__ == '__main__':
+    puuid = update_player_data('Tourtipouss','9861',max_matches = 10)
+    
+    if puuid:
+        print(f'PUUID: {puuid}')
