@@ -98,16 +98,6 @@ def get_match_info(match_ids, API_KEY):
             return None
     return match_info
 
-def store_match(match_data):
-    try:
-        supabase.table('matches').upsert({
-            'match_id': match_data['metadata']['match_id'],
-            'raw_data': match_data
-        }).execute()
-        print(f'Match {match_data['metadata']['match_id']} stored')
-    except Exception as e:
-        print('DB Error: {e}')
-
 match_data = get_match_info(match_ids,API_KEY)
 
 def get_champion_cost():
