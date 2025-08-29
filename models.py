@@ -39,3 +39,24 @@ def store_match(match_data):
     except Exception as e:
         print(f'Error storing match: {e}')
         return None
+    
+def store_participant_relations(match_data):
+    try:
+        match_id = match_data['metadata']['match_id']
+        participants = match_data['info']['participants']
+        
+        for participant in participants:
+            puuid = participant['puuid']
+            placement = participant['placement']
+            
+            supabase.table('player_matches').upsert({
+                'puuid': puuid,
+                'match_id': match_id,
+                'placement': placement
+            }).execute()
+        
+        print(f"Stored {len(participants)} participant relations for {match_id}")
+        return True
+    except Exception as e:
+        print(f"Error storing participant relations: {e}")
+        return False
