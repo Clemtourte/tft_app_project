@@ -20,7 +20,7 @@ def get_puuid(username, tag, API_KEY):
         return None
 
 
-def get_matchid(puuid,start,count,API_key):
+def get_matchid(puuid,start,count,API_KEY):
     matchid_url = 'https://europe.api.riotgames.com/tft/match/v1/matches/by-puuid'
     url = f"{matchid_url}/{puuid}/ids?start={start}&count={count}&api_key={API_KEY}"
     try:
