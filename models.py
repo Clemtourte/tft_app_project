@@ -40,20 +40,33 @@ def store_match(match_data):
         print(f'Error storing match: {e}')
         return None
     
+def get_tracked_players():
+    try:
+        result = supabase.table('players').select('puuid').execute()
+        return {player['puuid'] for player in result.data}
+    except Exception as e:
+        print(f'Error fetching tracked players: {e}')
+        return set()
+
+
 def store_participant_relations(match_data):
     try:
         match_id = match_data['metadata']['match_id']
         participants = match_data['info']['participants']
+        tracked_puuids = get_tracked_players()
         
+        stored_count = 0
         for participant in participants:
             puuid = participant['puuid']
             placement = participant['placement']
-            
-            supabase.table('player_matches').upsert({
-                'puuid': puuid,
-                'match_id': match_id,
-                'placement': placement
-            }).execute()
+
+            if puuid in tracked_puuids:
+                supabase.table('player_matches').upsert({
+                    'puuid': puuid,
+                    'match_id': match_id,
+                    'placement': placement
+                }).execute()
+                stored_count +=1
         
         print(f"Stored {len(participants)} participant relations for {match_id}")
         return True
