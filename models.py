@@ -73,3 +73,42 @@ def store_participant_relations(match_data):
     except Exception as e:
         print(f"Error storing participant relations: {e}")
         return False
+
+def get_player_matches(puuid):
+    try:
+        result = supabase.table('player_matches').select('match_id, placement').eq('puuid',puuid).execute()
+
+        if not result.data:
+            return[]
+        
+        match_ids = [row['match_id'] for row in result.data]
+        matches_result = supabase.table('matches').select('*').in_('match_id',match_ids).execute()
+
+        user_matches = []
+        for match_row in matches_result.data:
+            placement = next(row['placement'] for row in result.data if row['match_id'] == match_row['match_id'])
+
+            match_data = {
+                'placement': placement,
+                'game_type': match_row['game_type'],
+                'units': [],
+                'traits': [],
+                'total_damage_to_players': 0,
+                'riotIdGameName': 'Unknown'
+            }
+
+            raw_data = match_row['raw_data']
+            for participant in raw_data['info']['participants']:
+                if participant['puuid'] == puuid:
+                    match_data['units'] = participant['units']
+                    match_data['traits'] = participant['traits']
+                    match_data['total_damage_to_players'] = participant['total_damage_to_players']
+                    match_data['riotIdGameName'] = participant.get('riotIdGameName','Unknown')
+                    break
+
+            user_matches.append(match_data)
+        return user_matches
+
+    except Exception as e:
+        print(f' Error fetching player matches: {e}')
+        return [] 
