@@ -1,5 +1,5 @@
 from riot_api import get_puuid, get_matchid, get_match_info, get_champion_cost
-from models import add_player, get_existing_match_ids, store_match
+from models import add_player, get_existing_match_ids, store_match, store_participant_relations
 from db import get_supabase_client
 import os
 from dotenv import load_dotenv
@@ -245,12 +245,13 @@ def update_player_data(username, tag, max_matches = 20):
         if match_data:
             for match in match_data:
                 store_match(match)
+                store_participant_relations(match)
 
     print('Update complete')
     return puuid
 
 if __name__ == '__main__':
-    puuid = update_player_data('Tourtipouss','9861',max_matches = 10)
+    puuid = update_player_data('Tourtipouss','9861',max_matches = 20)
     
     if puuid:
         print(f'PUUID: {puuid}')
