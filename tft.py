@@ -3,6 +3,7 @@ from models import add_player, get_existing_match_ids, store_match, store_partic
 from db import get_supabase_client
 import os
 from dotenv import load_dotenv
+import time
 
 load_dotenv()
 API_KEY = os.getenv('API_KEY')
@@ -209,7 +210,7 @@ def display_champion_performance(puuid):
               f'{stats['win_rate']:<8.1f}%')
 
 
-def update_player_data(username, tag, max_matches = 20):
+def update_player_data(username, tag, max_matches=200, batch_size=20, delay_between_batches=10):
 
     puuid = get_puuid(username, tag, API_KEY)
     if not puuid:
@@ -217,29 +218,48 @@ def update_player_data(username, tag, max_matches = 20):
         return None
     
     add_player(username, tag, puuid)
-
-    match_ids = get_matchid(puuid, 0, max_matches,API_KEY)
-    if not match_ids:
-        print(f'Could not get match IDs')
-        return None
-    
     existing_ids = get_existing_match_ids()
-    new_match_ids = [mid for mid in match_ids if mid not in existing_ids]
-
-    print(f'Found {len(new_match_ids)} new matches ou of {len(match_ids)} total')
-
-    if new_match_ids:
+    total_new_matches = 0
+    
+    for start_idx in range(0, max_matches, batch_size):
+        current_batch_size = min(batch_size, max_matches - start_idx)
+        print(f"\nBatch {start_idx//batch_size + 1}: Getting matches {start_idx}-{start_idx + current_batch_size - 1}")
+        
+        match_ids = get_matchid(puuid, start_idx, current_batch_size, API_KEY)
+        if not match_ids:
+            print(f'Could not get match IDs for batch {start_idx//batch_size + 1}')
+            break
+        
+        new_match_ids = [mid for mid in match_ids if mid not in existing_ids]
+        
+        if not new_match_ids:
+            print('No new matches in this batch, stopping')
+            break
+        
+        print(f'Found {len(new_match_ids)} new matches out of {len(match_ids)} in this batch')
+        
         match_data = get_match_info(new_match_ids, API_KEY)
         if match_data:
             for match in match_data:
                 store_match(match)
                 store_participant_relations(match)
-
-    print('Update complete')
+                existing_ids.add(match['metadata']['match_id'])
+            
+            total_new_matches += len(match_data)
+            print(f'Batch {start_idx//batch_size + 1} complete')
+        else:
+            print(f'Failed to fetch match data for batch {start_idx//batch_size + 1}')
+            break
+        
+        if start_idx + batch_size < max_matches and new_match_ids:
+            print(f'Waiting {delay_between_batches}s')
+            time.sleep(delay_between_batches)
+    
+    print(f'\nAdded {total_new_matches} new matches total.')
     return puuid
 
 if __name__ == '__main__':
-    puuid = update_player_data('Tourtipouss','9861',max_matches = 20)
+    puuid = update_player_data('Tourtipouss','9861',max_matches = 200)
     if puuid:
         display_user_stats(puuid)
         display_champion_performance(puuid)
