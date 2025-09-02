@@ -27,11 +27,15 @@ def store_match(match_data):
     try:
         match_id = match_data['metadata']['match_id']
         game_type = match_data['info']['tft_game_type']
+        set_number = match_data['info'].get('tft_set_number', 'unknown')
+        patch_version = match_data['info'].get('game_version', 'unknown')
 
         supabase.table('matches').upsert({
             'match_id': match_id,
             'raw_data': match_data,
-            'game_type': game_type
+            'game_type': game_type,
+            'set_number': set_number,
+            'patch_version': patch_version
         }).execute()
 
         print(f'Match {match_id} stored')
