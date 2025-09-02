@@ -1,6 +1,7 @@
 import requests
 import os
 from dotenv import load_dotenv
+import time
 
 load_dotenv()
 
@@ -34,16 +35,21 @@ def get_matchid(puuid,start,count,API_KEY):
         return None
 
 
-def get_match_info(match_ids, API_KEY):
+def get_match_info(match_ids, API_KEY, target_set = 15):
     matchinfo_url = 'https://europe.api.riotgames.com/tft/match/v1/matches'
     match_info = []
     for match_id in match_ids:
         url = f"{matchinfo_url}/{match_id}?api_key={API_KEY}"
+        time.sleep(1)
         try:             
             response = requests.get(url)
             response.raise_for_status()
             data = response.json()
-            match_info.append(data)
+            set_number = data['info'].get('tft_set_number')
+            if set_number == target_set:
+                match_info.append(data)
+            else:
+                print('Skipped')
         except requests.RequestException as e:
             print(f"API error: {e}")
             print(f"Status Code: {response.status_code if 'response' in locals() else 'N/A'}")
