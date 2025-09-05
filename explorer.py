@@ -1,10 +1,53 @@
 from models import get_player_matches
 from tft import get_champion_name, ITEM_MAPPING, TRAIT_MAPPING
 
+def normalize_placement(placement, game_type):
+    if game_type == 'pairs':
+        if placement in [1, 2]:
+            return 1
+        elif placement in [3, 4]:
+            return 2
+        elif placement in [5, 6]:
+            return 3
+        elif placement in [7, 8]:
+            return 4
+    
+    return placement
+
+def calculate_stats_by_game_type(matches):
+    ranked_matches = [m for m in matches if m['game_type'] == 'standard']
+    doubleup_matches = [m for m in matches if m['game_type'] == 'pairs']
+
+    stats = {}
+
+    for game_type, type_matches in [('ranked', ranked_matches), ('doubleup', doubleup_matches)]:
+        if type_matches:
+            normalized_placements = [normalize_placement(m['placement'], m['game_type']) for m in type_matches]
+            
+            avg_placement = sum(normalized_placements) / len(normalized_placements)
+            top4_count = sum(1 for p in normalized_placements if p <= 4)
+            top4_rate = (top4_count / len(normalized_placements)) * 100
+            win_count = sum(1 for p in normalized_placements if p == 1)
+            win_rate = (win_count / len(normalized_placements)) * 100
+            
+            stats[game_type] = {
+                'matches': len(type_matches),
+                'avg_placement': avg_placement,
+                'top4_rate': top4_rate,
+                'win_rate': win_rate,
+                'placements': normalized_placements
+            }
+    
+    return stats
+
 def filter_matches(user_matches, filters):
     filtered_matches = []
 
     for match in user_matches:
+
+        if 'game_type' in filters and match['game_type'] != filters['game_type']:
+            continue
+
         match_valid = True
 
         for unit in match['units']:
@@ -43,35 +86,40 @@ def filter_matches(user_matches, filters):
     
 def explorer_query(puuid, **filters):
     user_matches = get_player_matches(puuid)
+    
     if not user_matches:
         print('No matches found')
         return
     
     filtered_matches = filter_matches(user_matches, filters)
-
+    
     if not filtered_matches:
         print('No matches found with these filters')
         return
 
-    placements = [match['placement'] for match in filtered_matches]
-    avg_placement = sum(placements) / len(placements)
-    top4_count = sum(1 for p in placements if p <= 4)
-    top4_rate = (top4_count / len(placements)) * 100
-    win_count = sum(1 for p in placements if p == 1)
-    win_rate = (win_count / len(placements)) * 100
+    # Normaliser tous les placements selon leur game_type
+    normalized_placements = [normalize_placement(m['placement'], m['game_type']) for m in filtered_matches]
+    
+    # Utiliser les placements normalisés pour les calculs
+    avg_placement = sum(normalized_placements) / len(normalized_placements)
+    top4_count = sum(1 for p in normalized_placements if p <= 4)
+    top4_rate = (top4_count / len(normalized_placements)) * 100
+    win_count = sum(1 for p in normalized_placements if p == 1)
+    win_rate = (win_count / len(normalized_placements)) * 100
 
-    print(f'\n Explorer Results:')
-    print(f' Matches found: {len(filtered_matches)}')
+    print(f'\nExplorer Results:')
+    print(f'Matches found: {len(filtered_matches)}')
     print(f'Average placement: {avg_placement:.2f}')
-    print(f'Top 4 rate: {top4_rate:.2f}% ({top4_count}/{len(placements)})')
-    print(f'Win rate: {win_rate:.2f}% ({win_count}/{len(placements)})')
-    print(f'Placements: {sorted(placements)}')
+    print(f'Top 4 rate: {top4_rate:.2f}% ({top4_count}/{len(normalized_placements)})')
+    print(f'Win rate: {win_rate:.2f}% ({win_count}/{len(normalized_placements)})')
+    print(f'Placements: {normalized_placements}')
 
-    print(f'\n Match details:')
-    for i, match in enumerate(filtered_matches,1):
+    print(f'\nMatch details:')
+    for i, match in enumerate(filtered_matches, 1):
         unit = match['matched_unit']
         items_str = ' + '.join(unit['items']) if unit['items'] else 'No items'
-        print(f' {i}. {unit['champion']} {unit['stars']}★ ({items_str}) -> Placement {match['placement']})')
+        normalized_placement = normalize_placement(match['placement'], match['game_type'])
+        print(f'{i}. {unit["champion"]} {unit["stars"]}★ ({items_str}) -> Placement {normalized_placement}')
 
     return {
         'matches': filtered_matches,
@@ -164,4 +212,4 @@ if __name__ == '__main__':
     print('Test explorer')
 
     print('\n2. Jhin with deathblade')
-    explorer_query(puuid, champion='Jhin', items=['Deathblade'])
+    explorer_query(puuid, champion='Jhin', items=['Deathblade'], game_type='pairs')
