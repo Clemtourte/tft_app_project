@@ -39,8 +39,7 @@ ITEM_MAPPING = {
     'Redemption': 'Spirit Visage',
     'UnstableConcoction': 'Hand of Justice',
     'NightHarvester': 'Steadfast Heart',
-    'Leviathan': 'Nashor\'s Tooth',
-    'Artifact': 'Blighting Jewel'
+    'Leviathan': 'Nashor\'s Tooth'
 }
 
 GAMETYPE_MAPPING = {
@@ -56,9 +55,10 @@ def calculate_board_value(units):
 def get_champion_name(unit):
     return unit['character_id'].split('_')[1]
 
+
 def format_unit_info(unit):
     clean_name = get_champion_name(unit)
-    clean_items = [item.split('_')[2] for item in unit['itemNames']]
+    clean_items = [item.split('_')[-1] for item in unit['itemNames']]
     mapped_items = [ITEM_MAPPING.get(item, item) for item in clean_items]
     items_str = f" ({', '.join(mapped_items)})" if mapped_items else " (no items)"
     return f'{clean_name}{items_str}'
@@ -210,7 +210,7 @@ def display_champion_performance(puuid):
               f'{stats['win_rate']:<8.1f}%')
 
 
-def update_player_data(username, tag, max_matches=200, batch_size=20, delay_between_batches=10):
+def update_player_data(username, tag, max_matches=200, batch_size=25, delay_between_batches=10):
 
     puuid = get_puuid(username, tag, API_KEY)
     if not puuid:
@@ -259,7 +259,7 @@ def update_player_data(username, tag, max_matches=200, batch_size=20, delay_betw
     return puuid
 
 if __name__ == '__main__':
-    puuid = update_player_data('Tourtipouss','9861',max_matches = 200)
+    puuid = update_player_data('Tourtipouss','9861',max_matches = 50)
     if puuid:
         display_user_stats(puuid)
         display_champion_performance(puuid)
