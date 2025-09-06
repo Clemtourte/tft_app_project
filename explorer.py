@@ -1,5 +1,6 @@
 from models import get_player_matches
 from tft import get_champion_name, ITEM_MAPPING, TRAIT_MAPPING
+from collections import Counter
 
 def normalize_placement(placement, game_type):
     if game_type == 'pairs':
@@ -42,33 +43,45 @@ def calculate_stats_by_game_type(matches):
 
 def filter_matches(user_matches, filters):
     filtered_matches = []
-
+    
     for match in user_matches:
-
         if 'game_type' in filters and match['game_type'] != filters['game_type']:
             continue
-
+            
         match_valid = True
-
+        
         for unit in match['units']:
             champion = get_champion_name(unit)
+            
             if 'champion' in filters and champion != filters['champion']:
                 continue
-
+            
             if 'items' in filters:
                 unit_items = []
                 for item_name in unit.get('itemNames', []):
-                    if len(item_name.split('_')) >= 3:
+                    if len(item_name.split('_')) >= 1:
                         clean_item = item_name.split('_')[-1]
                         mapped_item = ITEM_MAPPING.get(clean_item, clean_item)
                         unit_items.append(mapped_item)
+                if 'min_items' in filters:
+                    min_items = filters['min_items']
+                    if len(unit_items) < min_items:
+                        continue
+                if 'max_items' in filters:
+                    max_items = filters['max_items']
+                    if len(unit_items) > max_items:
+                        continue
 
                 required_items = filters['items']
-                if not all(item in unit_items for item in required_items):
+                unit_item_counts = Counter(unit_items)
+                required_item_counts = Counter(required_items)
+                
+                if not all(unit_item_counts[item] >= required_item_counts[item] 
+                          for item in required_item_counts):
                     continue
-
+            
             if 'star_level' in filters:
-                unit_stars = unit.get('tier',1)
+                unit_stars = unit.get('tier', 1)
                 if unit_stars != filters['star_level']:
                     continue
             
@@ -79,11 +92,12 @@ def filter_matches(user_matches, filters):
                 'stars': unit.get('tier', 1),
                 'character_id': unit['character_id']
             }
-
             filtered_matches.append(match_copy)
             break
+    
     return filtered_matches
     
+
 def explorer_query(puuid, **filters):
     user_matches = get_player_matches(puuid)
     
@@ -97,10 +111,8 @@ def explorer_query(puuid, **filters):
         print('No matches found with these filters')
         return
 
-    # Normaliser tous les placements selon leur game_type
     normalized_placements = [normalize_placement(m['placement'], m['game_type']) for m in filtered_matches]
     
-    # Utiliser les placements normalisés pour les calculs
     avg_placement = sum(normalized_placements) / len(normalized_placements)
     top4_count = sum(1 for p in normalized_placements if p <= 4)
     top4_rate = (top4_count / len(normalized_placements)) * 100
@@ -212,4 +224,4 @@ if __name__ == '__main__':
     print('Test explorer')
 
     print('\n2. Jhin with deathblade')
-    explorer_query(puuid, champion='Jhin', items=['Deathblade'], game_type='pairs')
+    explorer_query(puuid, champion='Jhin', items=['Deathblade'], game_type='pairs', max_items=2)
